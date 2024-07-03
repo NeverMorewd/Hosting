@@ -17,73 +17,26 @@ namespace Nito.Hosting.AvaloniauiDesktop
         /// Also configures the <typeparamref name="TApplication"/> as a singleton.
         /// </summary>
         /// <typeparam name="TApplication">The type of avaloniaui application <see cref="Application"/> to manage.</typeparam>
-        /// <param name="appBuilderResolver"><see cref="AppBuilder.Configure{TApplication}()"/></param>
-        /// <param name="commandArgs">commmandline args</param>
+        /// <param name="appBuilderConfiger"><see cref="AppBuilder.Configure{TApplication}()"/></param>
 
-        public static IServiceCollection AddAvaloniauiDesktopApplication<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TApplication>(this IServiceCollection services,
-            Func<string[], AppBuilder> appBuilderResolver,
-            Func<AppBuilder, AppBuilder> appBuilderConfiger,
-            string[] commandArgs)
-            where TApplication : Application, new()
-        {
-            var appBuilder = appBuilderResolver(commandArgs);
-            appBuilder = appBuilderConfiger(appBuilder);
-            return services
-                    .AddSingleton(appBuilder)
-                    .AddSingleton(provider =>
-                    {
-                        appBuilder.Instance!.Initialize();
-                        return (appBuilder.Instance! as TApplication)!;
-                    })
-                    .AddSingleton<IHostLifetime, AvaloniauiApplicationLifetime<TApplication>>();
-        }
-
-        /// <summary>
-        /// an overload without commmandargs of AddAvaloniauiDesktopApplication()
-        /// </summary>
-        public static IServiceCollection AddAvaloniauiDesktopApplication<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TApplication>(this IServiceCollection services,
-            Func<AppBuilder> appBuilderResolver)
-            where TApplication : Application, new()
-        {
-            return services.AddAvaloniauiDesktopApplication<TApplication>(appBuilderResolver: (args) => appBuilderResolver(),
-                appBuilderConfiger: appbuilder => appbuilder,
-                commandArgs: Array.Empty<string>());
-        }
-
-        /// <summary>
-        /// an overload without appBuilderConfiger of AddAvaloniauiDesktopApplication()
-        /// </summary>
-        public static IServiceCollection AddAvaloniauiDesktopApplication<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TApplication>(this IServiceCollection services,
-           Func<string[], AppBuilder> appBuilderResolver,
-           string[] commandArgs)
-           where TApplication : Application, new()
-        {
-            return services.AddAvaloniauiDesktopApplication<TApplication>(appBuilderResolver: (args) => appBuilderResolver(args),
-                appBuilderConfiger: appbuilder => appbuilder,
-                commandArgs: commandArgs);
-        }
-
-        /// <summary>
-        /// an overload without appBuilderResolver and commmandargs of AddAvaloniauiDesktopApplication()
-        /// </summary>
         public static IServiceCollection AddAvaloniauiDesktopApplication<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TApplication>(this IServiceCollection services,
             Func<AppBuilder, AppBuilder> appBuilderConfiger)
             where TApplication : Application, new()
         {
-            return services.AddAvaloniauiDesktopApplication<TApplication>(appBuilderResolver: (args) => BuildAvaloniaAppDefault<TApplication>(Array.Empty<string>()),
-                appBuilderConfiger: appbuilder => appBuilderConfiger(appbuilder),
-                commandArgs: Array.Empty<string>());
-        }
+            return services
+                    .AddSingleton<TApplication>()
+                    .AddSingleton(provider =>
+                    {
+                        var appBuilder = AppBuilder.Configure(() =>
+                        {
+                            return provider.GetRequiredService<TApplication>();
+                        });
 
-        /// <summary>
-        /// an overload without commmandargs,appBuilderResolver,appBuilderConfiger of AddAvaloniauiDesktopApplication()
-        /// </summary>
-        public static IServiceCollection AddAvaloniauiDesktopApplication<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TApplication>(this IServiceCollection services)
-            where TApplication : Application, new()
-        {
-            return services.AddAvaloniauiDesktopApplication<TApplication>(appBuilderResolver: args => BuildAvaloniaAppDefault<TApplication>(Array.Empty<string>()),
-                appBuilderConfiger: appbuilder => appbuilder,
-                commandArgs: Array.Empty<string>());
+                        appBuilder = appBuilderConfiger(appBuilder);
+
+                        return appBuilder;
+                    })
+                    .AddSingleton<IHostLifetime, AvaloniauiApplicationLifetime<TApplication>>();
         }
 
 
@@ -91,15 +44,29 @@ namespace Nito.Hosting.AvaloniauiDesktop
         /// Runs the avaloniaui application along with the .NET generic host.
         /// </summary>
         /// <typeparam name="TApplication">The type of the avaloniaui application <see cref="Application"/> to run.</typeparam>
-        public static void RunAvaliauiApplication<TApplication>(this IHost host,
+        /// <param name="commandArgs">commmandline args</param>
+        /// <param name="cancellationToken">cancellationToken</param>
+        public static Task RunAvaliauiApplication<TApplication>(this IHost host,
+             string[] commandArgs,
             CancellationToken cancellationToken = default)
             where TApplication : Application
         {
             _ = host ?? throw new ArgumentNullException(nameof(host));
-            var app = host.Services.GetRequiredService<TApplication>();
-            var hostTask = host.RunAsync(token: cancellationToken);
+            var builder = host.Services.GetRequiredService<AppBuilder>();
+            builder = builder.SetupWithLifetime(new ClassicDesktopStyleApplicationLifetime
+            {
+                Args = commandArgs,
+                // can be reset in OnFrameworkInitializationCompleted
+                ShutdownMode = Avalonia.Controls.ShutdownMode.OnMainWindowClose,
+            });
 
-            if (app.ApplicationLifetime is ClassicDesktopStyleApplicationLifetime classicDesktop)
+            if (builder.Instance == null)
+            {
+                throw new NotImplementedException("No application initialized!");
+            }
+
+            var hostTask = host.RunAsync(token: cancellationToken);
+            if (builder.Instance.ApplicationLifetime is ClassicDesktopStyleApplicationLifetime classicDesktop)
             {
                 Environment.ExitCode = classicDesktop.Start(classicDesktop.Args ?? Array.Empty<string>());
             }
@@ -107,19 +74,7 @@ namespace Nito.Hosting.AvaloniauiDesktop
             {
                 throw new NotImplementedException("Genric host support classic desktop only!");
             }
-            hostTask.GetAwaiter().GetResult();
-        }
-
-        private static AppBuilder BuildAvaloniaAppDefault<TApplication>(string[] args) where TApplication : Application, new()
-        {
-            return AppBuilder.Configure<TApplication>()
-                            .UsePlatformDetect()
-                            .LogToTrace()
-                            .SetupWithLifetime(new ClassicDesktopStyleApplicationLifetime
-                            {
-                                Args = args,
-                                ShutdownMode = Avalonia.Controls.ShutdownMode.OnMainWindowClose,
-                            });
+            return hostTask;
         }
     }
 }

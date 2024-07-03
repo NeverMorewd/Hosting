@@ -25,52 +25,23 @@ namespace AvaloniaSample
             // ioc configure
             hostBuilder.Configuration.AddCommandLine(args);
 
-            // build with args -> config
-            hostBuilder.Services.AddAvaloniauiDesktopApplication<App>(BuildAvaloniaApp, ConfigAvaloniaApp, args);
-            // config
-            //hostBuilder.Services.AddAvaloniauiDesktopApplication<App>(ConfigAvaloniaApp);
-            // build without args
-            //hostBuilder.Services.AddAvaloniauiDesktopApplication<App>(BuildAvaloniaAppWithoutArgs);
-            // build default
-            //hostBuilder.Services.AddAvaloniauiDesktopApplication<App>();
+            // add avaloniaui application
+            hostBuilder.Services.AddAvaloniauiDesktopApplication<App>(ConfigAvaloniaApp);
 
             // build host
             var appHost = hostBuilder.Build();
 
             // run app
-            appHost.RunAvaliauiApplication<App>();
-        }
-
-        public static AppBuilder BuildAvaloniaApp(string[] args)
-        { 
-            return AppBuilder.Configure<App>()
-                            .UsePlatformDetect()
-                            .WithInterFont()
-                            .LogToTrace()
-                            .UseReactiveUI()
-                            .SetupWithLifetime(new ClassicDesktopStyleApplicationLifetime
-                            {
-                                Args = args,
-                                ShutdownMode = Avalonia.Controls.ShutdownMode.OnMainWindowClose,
-                            });
-        }
-
-        public static AppBuilder BuildAvaloniaAppWithoutArgs()
-        {
-            return AppBuilder.Configure<App>()
-                            .UsePlatformDetect()
-                            .WithInterFont()
-                            .LogToTrace()
-                            .UseReactiveUI()
-                            .SetupWithLifetime(new ClassicDesktopStyleApplicationLifetime
-                            {
-                                ShutdownMode = Avalonia.Controls.ShutdownMode.OnMainWindowClose,
-                            });
+            appHost.RunAvaliauiApplication<App>(args);
         }
 
         public static AppBuilder ConfigAvaloniaApp(AppBuilder appBuilder)
         {
-            return appBuilder.WithInterFont().UseReactiveUI();
+            return appBuilder
+                        .UsePlatformDetect()
+                        .WithInterFont()
+                        .LogToTrace()
+                        .UseReactiveUI();
         }
     }
 }

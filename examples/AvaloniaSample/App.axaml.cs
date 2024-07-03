@@ -21,6 +21,7 @@ namespace AvaloniaSample
                 {
                     DataContext = new MainWindowViewModel(),
                 };
+                desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnExplicitShutdown;
             }
 
             base.OnFrameworkInitializationCompleted();

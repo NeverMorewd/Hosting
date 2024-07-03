@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Runtime.Versioning;
 
@@ -17,13 +18,14 @@ namespace Nito.Hosting.AvaloniauiDesktop
     public sealed class AvaloniauiApplicationLifetime<TApplication> : IHostLifetime
         where TApplication : Application
     {
+
         /// <summary>
         /// Initializes a new instance of the <see cref="AvaloniauiApplicationLifetime{TApplication}"/> class.
         /// </summary>
-        public AvaloniauiApplicationLifetime(IHostApplicationLifetime applicationLifetime, TApplication application)
+        public AvaloniauiApplicationLifetime(IHostApplicationLifetime applicationLifetime, IServiceProvider provider)
         {
             _applicationLifetime = applicationLifetime;
-            _application = application;
+            _provider = provider;
         }
 
         /// <inheritdoc />
@@ -32,7 +34,9 @@ namespace Nito.Hosting.AvaloniauiDesktop
             var ready = new TaskCompletionSource<object>();
             using var registration = cancellationToken.Register(() => ready.TrySetCanceled(cancellationToken));
 
-            if (_application.ApplicationLifetime is IControlledApplicationLifetime desktopLifetime)
+            var application = _provider.GetRequiredService<TApplication>();
+
+            if (application.ApplicationLifetime is IControlledApplicationLifetime desktopLifetime)
             {
                 desktopLifetime.Startup += (_, _) => ready.TrySetResult(null!);
                 desktopLifetime.Exit += (_, _) =>
@@ -57,6 +61,6 @@ namespace Nito.Hosting.AvaloniauiDesktop
 
         private readonly IHostApplicationLifetime _applicationLifetime;
         private readonly TaskCompletionSource<object> _applicationExited = new();
-        private readonly TApplication _application;
+        private readonly IServiceProvider _provider;
     }
 }
